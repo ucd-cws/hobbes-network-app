@@ -1,0 +1,150 @@
+<link rel="import" href="cwn-node-info-btns.html" />
+
+<dom-module id="cwn-node-info">
+    <style>
+        #middleCol {
+            transition: margin-top linear 200ms;
+            -webkit-transition: margin-top linear 200ms;
+            -moz-transition: margin-top linear 200ms;
+            -ms-transition: margin-top linear 200ms;
+        }
+        .border {
+          padding: 5px;
+          display: inline-block;
+          /*border-radius: 6px;
+          border: 1px solid #eee;*/
+          margin-top: 25px;
+        }
+        .description {
+          font-size: 12px;
+          color: #888;
+        }
+        :host {
+            display: block;
+        }
+        [hidden] {
+          display:none;
+        }
+        .overflow {
+          max-height: 300px;
+          overflow: auto;
+        }
+    </style>
+
+    <template>
+        <div class="row" >
+
+          <!-- Start Origins -->
+          <div class="col-md-4 no-float">
+            <h4 class="page-header node-info-header" style="text-align:right">Origins</h4>
+            <div>
+
+              <div id="origin">
+                <div style="text-align:right">
+                  <div>
+                    <cwn-info-link prmname$="{{feature.properties.origin}}"></cwn-info-link>
+                  </div>
+                  <div hidden$="{{!hasOriginDescription}}">
+                    <div class="description">{{originDescription}}</div>
+                  </div>
+                </div>
+              </div>
+
+              <div id="originExtra" style="text-align:right"></div>
+
+              <div class="node-info-list">
+                <template is="dom-repeat" items="{{origins}}">
+                  <div style="text-align:right;margin-bottom:20px">
+                    <div>
+                      <cwn-info-link prmname$="{{item.name}}"></cwn-info-link>&nbsp;&nbsp;&nbsp;
+
+                      <span hidden$="{{item.hideArrow}}">
+                        <a href="{{item.link}}" hidden$="{{!item.hasLink}}">
+                          <i class="fa fa-long-arrow-right" style="font-size:32px;display:inline-block;"></i>
+                        </a>
+
+                        <span hidden$="{{item.hasLink}}">
+                            <i class="fa fa-long-arrow-right" style="color:#888;font-size:32px;display:inline-block;"></i>
+                        </span>
+                      </span>
+
+                    </div>
+                    <div class="description" hidden$="{{!item.description}}" style="margin-right: 55px">{{item.description}}</div>
+                  </div>
+                </template>
+              </div>
+            </div>
+          </div>
+          <!-- End Origins -->
+
+          <!-- Start Feature -->
+          <div class="col-md-4" style="text-align:center" id="middleCol">
+              <div class="border">
+                <table style="margin: 0 auto">
+                  <tr>
+                    <td>
+                      <cwn-app-icon type$="{{type}}" width="72" height="72" fillFromType="true" style="margin:35px 15px 0 15px"></cwn-app-icon>
+                    </td><td>
+                      <h3 id="label" style="text-transform: capitalize"></h3>
+                      <div><b>{{feature.properties.type}}</b></div>
+                    </td>
+                  </tr>
+                </table>
+                <div style="padding: 10px 10px 0 10px; color: #888">{{feature.properties.description}}</div>
+
+                <cwn-region-label id="regions"></cwn-region-label>
+
+                <cwn-node-info-btns id="btns" style="margin-top: 20px; padding-top: 10px; border-top: 1px solid #ddd"></cwn-node-info-btns>
+
+              </div>
+          </div>
+          <!-- End Feature -->
+
+          <!-- Start Terminals -->
+          <div class="col-md-4">
+            <h4 class="page-header node-info-header">Terminals</h4>
+
+            <div id="terminal">
+              <div>
+                <cwn-info-link prmname$="{{feature.properties.terminus}}"></cwn-info-link>
+              </div>
+              <div hidden$="{{!hasTerminalDescription}}">
+                <div class="description">{{terminalDescription}}</div>
+              </div>
+            </div>
+
+            <div id="terminusExtra"></div>
+
+            <div class="node-info-list">
+              <template is="dom-repeat" items="{{terminals}}">
+                <div style="margin-bottom:20px">
+                  <div>
+
+                    <span hidden$="{{item.hideArrow}}">
+                      <a href="{{item.link}}" hidden$="{{!item.hasLink}}">
+                        <i class="fa fa-long-arrow-right" style="font-size:32px;display:inline-block;"></i>
+                      </a>
+
+                      <span hidden$="{{item.hasLink}}">
+                          <i class="fa fa-long-arrow-right" style="color:#888;font-size:32px;display:inline-block;"></i>
+                      </span>
+                    </span>
+
+                    &nbsp;&nbsp;&nbsp;<cwn-info-link prmname$="{{item.name}}"></cwn-info-link>
+
+                  </div>
+                  <div hidden$="{{!item.description}}">
+                    <div class="description" style="margin-left: 55px">{{item.description}}</div>
+                  </div>
+                </div>
+              </template>
+            </div>
+          </div>
+          <!-- End Terminals -->
+
+        </div>
+
+        <div id="regionNodes"></div>
+    </template>
+</dom-module>
+<script src="controller.js"></script>

@@ -1,0 +1,371 @@
+<link rel="import" href="node/cwn-node-info.html" />
+<link rel="import" href="cost/cwn-cost-info.html" />
+<link rel="import" href="cwn-output-info.html" />
+<link rel="import" href="cwn-climate-info.html" />
+<link rel="import" href="cwn-flow-info.html" />
+<link rel="import" href="cwn-sink-info.html" />
+
+<dom-module id="cwn-info-page">
+
+
+    <template>
+      <style>
+        :host {
+          display: block;
+          overflow-x: hidden;
+          margin-bottom: 100px;
+        }
+        .card {
+          margin: 10px 10px 10px 10px;
+          box-shadow: 0 0 5px #888;
+          padding: 15px;
+        }
+      </style>
+
+      <div class="card" hidden$="{{loading}}" style="margin-top: 25px">
+        <cwn-node-info
+          id="nodeInfo"
+          feature="{{feature}}"
+          ds="{{ds}}"
+          leaflet="{{map}}">
+        </cwn-node-info>
+      </div>
+
+      <!-- End Header Card -->
+      <div class="row">
+        <div class="col-md-6" id="climateCard">
+
+          <!-- Start Climate -->
+          <div class="card">
+            <cwn-climate-info id="climate" feature="{{feature}}" on-climate-ready="onClimateReady"></cwn-climate-info>
+          </div>
+          <!-- End Climate -->
+
+        </div>
+        <div class="col-md-6" id="costCard">
+
+          <!-- Start Costs -->
+          <div class="card">
+            <cwn-cost-info id="costs" feature="{{feature}}" on-cost-ready="onCostsReady"></cwn-cost-info>
+          </div>
+          <!-- End Costs -->
+
+        </div>
+      </div>
+
+      <div class="card" id="sinks">
+        <h2 class="page-header">Sinks</h2>
+        <div id="sinksRoot"></div>
+      </div>
+
+      <div class="card">
+        <cwn-flow-info id="flow" on-region-link-update="onRegionLinkUpdate"></cwn-flow-info>
+      </div>
+
+      <div class="card" id="readme" style="display:none">
+        <h4 class="page-header">README</h4>
+        <div id="readmeMarkdown"><h2>Loading</h2></div>
+      </div>
+
+      <cwn-dateslider
+        id="dateslider"
+        start="1920-01-01"
+        on-values-changed="updateDateFilters">
+      </cwn-dateslider>
+
+
+    </template>
+</dom-module>
+<script>
+Polymer({
+    is : 'cwn-info-page',
+
+    ready : function() {
+      this.feature = null;
+
+      //this.hack = '';
+      //this.islocal = false;
+      //this.tableProperties = ['prmname'];
+
+      // loading flags
+      this.costLoadError = false;
+      this.costLoading = false;
+      this.loading = false;
+
+        // have to do long lookup right now, is there are better way?
+      this.origins = [];
+      this.terminals = [];
+
+      // render data.  Data in a format ready to draw above
+      this.map = {};
+
+      // date filtering
+      this.filters = {
+        start : null,
+        stop : null
+      },
+
+      // dom controller stuff
+      this.hasTimeSeries = false;
+    },
+
+    init : function(map) {
+      this.map = map;
+      this.islocal = CWN.ds.islocal;
+
+      CWN.ds.on('load', this.onLoad.bind(this));
+    },
+
+    onLoad : function() {
+      if( CWN.ds.loading ) return;
+
+      var loc = window.location.hash.replace('#','').split('/');
+      if( loc[0] == 'info' && loc.length > 1) {
+        if( this.feature && this.feature.prmname == loc[1] ) {
+          this.update();
+        } else {
+          this.setFeature(loc[1]);
+        }
+      }
+    },
+
+    setFeature : function(prmname) {
+      if( this.prmname == prmname ) return;
+      if( prmname ) this.prmname = prmname;
+
+      this.costsReady = false;
+      this.climateReady = false;
+
+      if( CWN.ds.lookupMap[prmname] ) {
+        this.feature = CWN.ds.lookupMap[prmname];
+      } else if( CWN.ds.regionLookupMap[prmname] ) {
+        this.setRegion(prmname);
+      } else {
+        // see if this is a region to feature
+        this.setRegionToRegion(prmname);
+      }
+
+      this.update();
+    },
+
+    onClimateReady : function() {
+      this.climateReady = true;
+      this.checkLayout();
+    },
+
+    onCostsReady : function() {
+      this.costsReady = true;
+      this.checkLayout();
+    },
+
+    checkLayout : function() {
+      if( !this.costsReady || !this.climateReady ) return;
+
+      if( this.$.costs.nodata && !this.$.climate.nodata ) {
+        this.$.costCard.style.display = 'none';
+        this.$.climateCard.className = 'col-md-12';
+      } else if( !this.$.costs.nodata && this.$.climate.nodata ) {
+        this.$.climateCard.style.display = 'none';
+        this.$.costCard.className = 'col-md-12';
+      } else {
+        this.$.climateCard.style.display = 'block';
+        this.$.costCard.style.display = 'block';
+
+        this.$.climateCard.className = 'col-md-6';
+        this.$.costCard.className = 'col-md-6';
+      }
+
+      // HACKy
+      setTimeout(function(){
+        $(window).trigger('resize');
+      }, 500);
+    },
+
+    setRegion : function(prmname) {
+      var region = CWN.ds.regionLookupMap[prmname];
+
+      var nodes = {};
+      var origins = {};
+      var terminals = {};
+      var node;
+
+      for( var key in CWN.ds.lookupMap ) {
+        node = CWN.ds.lookupMap[key].properties;
+        if( !node ) continue;
+
+        if( node.type !== 'Diversion' && node.type !== 'Return Flow' ) {
+          if( node.regions && node.regions.indexOf(prmname) > -1 ) {
+            nodes[node.prmname] = 1;
+          }
+        }
+      }
+
+      for( var key in CWN.ds.lookupMap ) {
+        node = CWN.ds.lookupMap[key].properties;
+        if( !node ) continue;
+        if( node.type === 'Diversion' || node.type === 'Return Flow' ) {
+
+          if( nodes[node.origin] && nodes[node.terminus] ) continue; // ignore internal
+
+          if( nodes[node.origin] ) {
+            terminals[node.terminus] = {
+              link_prmname : node.prmname,
+              prmname : node.terminus
+            }
+          } else if( nodes[node.terminus] ) {
+
+            origins[node.origin] = {
+              link_prmname : node.prmname,
+              prmname : node.origin
+            };
+          }
+        }
+      }
+
+      arr = [];
+      for( var key in origins ) {
+        arr.push(origins[key]);
+      }
+      origins = arr;
+
+      arr = [];
+      for( var key in terminals ) {
+        arr.push(terminals[key]);
+      }
+      terminals = arr;
+
+
+      this.feature = {
+        properties : {
+          prmname : prmname,
+          type : 'Region',
+          nodes : Object.keys(nodes),
+          origins : origins,
+          terminals : terminals,
+          parents : region.properties.parents,
+          subregions : region.properties.subregions,
+          repo : region.properties.repo,
+          label : region.properties.name,
+          description : region.properties.region
+        }
+      };
+    },
+
+    setRegionToRegion : function(prmname) {
+      var parts = prmname.split('--');
+
+      if( parts.length == 0 ) {
+        this.feature = null;
+        return;
+      }
+
+      var node = {
+        properties : {
+          prmname : prmname,
+          origin : null,
+          terminus : null,
+          type : 'Region Link'
+        }
+      };
+
+      if( CWN.ds.lookupMap[parts[0]] ) {
+        node.properties.origin = CWN.ds.lookupMap[parts[0]].properties.prmname;
+      } else if( CWN.ds.regionLookupMap[parts[0]] ) {
+        node.properties.origin = CWN.ds.regionLookupMap[parts[0]].properties.id;
+      }
+
+      if( CWN.ds.lookupMap[parts[1]] ) {
+        node.properties.terminus = CWN.ds.lookupMap[parts[1]].properties.prmname;
+      } else if( CWN.ds.regionLookupMap[parts[1]] ) {
+        node.properties.terminus = CWN.ds.regionLookupMap[parts[1]].properties.id;
+      }
+
+      if( !node.properties.origin || !node.properties.terminus ) {
+        this.feature = null;
+        return;
+      }
+
+      this.feature = node;
+    },
+
+    update : function() {
+      if( CWN.ds.loading ) return;
+      if( this.feature == null ) return alert('Feature not found');
+
+      this.hasOutputs = false;
+
+      //this.$.outputs.update(this.feature);
+      this.$.flow.update(this.feature);
+
+      if( this.feature.properties.hasOutputs ) {
+        this.hasOutputs = true;
+      }
+
+      this.updateSinks();
+      this.updateReadme();
+      this.updateDateSliderVisibility();
+
+      this.async(function(){
+        this.$.dateslider.resize();
+      });
+    },
+
+    updateSinks : function() {
+      if( this.feature.properties.extras && this.feature.properties.extras.sinks ) {
+        this.$.sinks.style.display = 'block';
+        this.$.sinksRoot.innerHTML = '';
+
+        CWN.ds.loadExtras(this.feature.properties.prmname, function(resp){
+          if( !resp.sinks ) return;
+          for( var i = 0; i < resp.sinks.length; i++ ) {
+            for( var name in resp.sinks[i] ) {
+              var sinkEle = document.createElement('cwn-sink-info');
+              this.$.sinksRoot.appendChild(sinkEle);
+              sinkEle.render(name, resp.sinks[i][name]);
+            }
+          }
+        }.bind(this));
+
+
+      } else {
+        this.$.sinks.style.display = 'none';
+      }
+    },
+
+    updateReadme : function() {
+        if( this.feature.properties.extras && this.feature.properties.extras.readme ) {
+          this.$.readme.style.display = 'block';
+          CWN.ds.loadExtras(this.feature.properties.prmname, function(resp){
+            this.$.readmeMarkdown.innerHTML = marked(resp.readme);
+            $(this.$.readmeMarkdown).find('h2').css('fontSize','28px');
+          }.bind(this));
+          return;
+        }
+
+        this.$.readme.style.display = 'none';
+        return;
+    },
+
+    updateDateFilters : function(e) {
+      var eles = this.querySelectorAll('cwn-date-linechart');
+
+      for( var i = 0; i < eles.length; i++ ) {
+        eles[i].startDate = e.detail.start;
+        eles[i].stopDate = e.detail.end;
+
+        eles[i].update();
+      }
+
+      this.notifyPath('filters.start', e.detail.start);
+      this.notifyPath('filters.stop', e.detail.end);
+    },
+
+    updateDateSliderVisibility : function() {
+      this.$.dateslider.setFeature(this.feature);
+    },
+
+    onRegionLinkUpdate : function(e) {
+      this.$.nodeInfo.setRegionLinkInfo(e.detail);
+    }
+});
+</script>

@@ -1,0 +1,280 @@
+<dom-module id="cwn-app">
+    <style>
+        leaflet-map, core-animated-pages {
+            height: 100%
+        }
+
+        .splash-screen {
+          position: fixed;
+          top: 100px;
+          text-align: center;
+          z-index: 20000;
+          width: 100%;
+        }
+
+        .splash-screen-text {
+          margin: 20px;
+          display: inline-block;
+          background-color: rgba(0,0,0,.7);
+          border-radius: 6px;
+          box-shadow: 0 0 5px black;
+          padding: 25px;
+          color: white;
+        }
+    </style>
+
+    <template>
+        <cwn-search id="search"></cwn-search>
+        <cwn-about id="about"></cwn-about>
+        <cwn-region-selector id="selector"></cwn-region-selector>
+        <cwn-dev on-update="onDataUpdated"></cwn-dev>
+
+        <cwn-filters
+          id="filters"
+          on-update="onFiltersUpdated"></cwn-filters>
+
+        <div class="splash-screen" id="splash">
+          <h2 class="splash-screen-text">
+            <i class="fa fa-circle-o-notch fa-spin"></i> Loading Network...
+          </h2>
+        </div>
+
+        <cwn-app-layout id="layout">
+          <a right-nav href="#map" id="backBtn">
+            <span class="hidden-xs"><i class="fa fa-arrow-left"></i> Back</span>
+            <span class="visible-xs"><i class="fa fa-arrow-left"></i></span>
+          </a>
+
+          <a right-nav on-click="showFilters" id="filterBtn">
+            <span class="hidden-xs"><i class="fa fa-filter"></i> Filters</span>
+            <span class="visible-xs"><i class="fa fa-filter"></i></span>
+          </a>
+
+          <a right-nav on-click="search">
+            <span class="hidden-xs"><i class="fa fa-search"></i> Search</span>
+            <span class="visible-xs"><i class="fa fa-search"></i></span>
+          </a>
+
+          <a right-nav on-click="showAbout">
+            <span class="hidden-xs"><i class="fa fa-question"></i> About</span>
+            <span class="visible-xs"><i class="fa fa-question"></i></span>
+          </a>
+
+          <cwn-map-menu
+            id="menu"
+            on-select="onRegionSelect">
+          </cwn-map-menu>
+
+
+          <cwn-map
+            id="map"
+            on-selected="onFeatureSelected"
+            on-filtering-complete="updateGraph">
+          </cwn-map>
+
+          <cwn-info-page content
+            id="info">
+          </cwn-info-page>
+
+          <cwn-graph content
+            class="fit"
+            id="graph">
+          </cwn-graph>
+
+
+
+        </cwn-app-layout>
+
+    </template>
+</dom-module>
+
+<script>
+    Polymer({
+        is : 'cwn-app',
+
+        ready : function() {
+          this.PAGES = {
+            map : 0,
+            info : 1,
+            graph : 2
+          };
+
+          this.selectedPage = 0;
+
+
+          this.loading = true;
+
+          this.dataLoaded = false;
+          this.dataLoadHandlers = [];
+
+          this.legend = {
+            'Power Plant'         : {
+              color : '#3366cc',
+              google : 'small_red'
+            },
+            'Agricultural Demand' : {
+                color : '#ff9900',
+                google : 'small_yellow'
+            },
+            'Junction'            : {
+                color : '#109618',
+                google : 'small_green'
+            },
+            'Pump Plant'          : {
+                color : '#990099',
+                google : 'small_blue'
+            },
+            'Water Treatment'     : {
+                color : '#0099c6',
+                google : 'small_purple'
+            },
+            'Surface Storage'     : {
+                color : '#dd4477',
+                google : 'measle_brown',
+            },
+            'Urban Demand'        : {
+                color : '#66aa00',
+                google : 'measle_grey'
+            },
+            'Sink'                : {
+                color : '#b82e2e',
+                google : 'measle_white'
+            },
+            'Groundwater Storage' : {
+                color : '#316395',
+                google : 'measle_turquoise'
+            },
+            'Non-Standard Demand' : {
+                color : '#22aa99',
+                google : 'shaded_dot'
+            }
+          };
+
+          this.$.map.menu = this.$.menu;
+          this.$.map.selector = this.$.selector;
+        },
+
+        attached : function() {
+          $(window).on('hashchange', function(){
+            this.setLocation();
+          }.bind(this));
+
+          this.$.filters.setLegend(this.legend);
+          this.$.map.init(this.legend, this.$.filters.filters);
+          this.$.info.init(this.$.map.map);
+
+          this.setLocation();
+
+          if( CWN.ds.loading ) CWN.ds.on('load', this.onLoadingChange.bind(this));
+          else this.onLoadingChange();
+        },
+
+        onLoadingChange : function() {
+          if( CWN.ds.loading ) {
+            this.$.splash.style.display = 'block';
+          } else {
+            this.$.splash.style.display = 'none';
+            this.onDataLoad();
+          }
+        },
+
+        setLocation : function() {
+          var loc = window.location.hash.replace('#','').replace(/\/.*/,'');
+          if( loc == '') loc = 'map';
+          this.$.backBtn.style.display = 'none';
+          this.$.filterBtn.style.display = 'none';
+
+          this.$.layout.updateView(loc);
+
+          if( loc == 'map' ) {
+            this.$.filterBtn.style.display = 'inline-block';
+            this.selectedPage = this.PAGES.map;
+            this.async(function(){
+              var ele = this.querySelector('cwn-map');
+              if( ele && ele.map ) ele.map.invalidateSize();
+            });
+          } else if ( loc == 'info' ) {
+            this.$.backBtn.style.display = 'inline-block';
+
+            this.selectedPage = this.PAGES.info;
+            if( this.dataLoaded ) {
+              this.setInfoFeature();
+            } else {
+              this.dataLoadHandlers.push(this.setInfoFeature.bind(this));
+            }
+          } else if ( loc == 'graph' ) {
+            this.$.backBtn.style.display = 'inline-block';
+            this.$.filterBtn.style.display = 'inline-block';
+            this.selectedPage = this.PAGES.graph;
+          }
+          this.setPage();
+        },
+
+        setPage : function() {
+          for( var key in this.PAGES ) {
+            if( this.selectedPage == this.PAGES[key] ) this.$[key].style.display = 'block';
+            else $(this.$[key]).hide();
+          }
+        },
+
+        setInfoFeature : function() {
+          var name = window.location.hash.replace('#','').split('/')[1];
+          name = decodeURIComponent(name);
+          this.$.info.setFeature(name);
+        },
+
+        onDataLoad : function() {
+          this.dataLoaded = true;
+          for( var i = 0; i < this.dataLoadHandlers.length; i++ ) {
+            this.dataLoadHandlers[i]();
+          }
+          this.dataLoadHandlers = [];
+        },
+
+        showFilters : function() {
+            this.$.filters.show();
+        },
+
+        search : function() {
+          this.$.search.show();
+        },
+
+        showAbout : function() {
+          this.$.about.show();
+        },
+
+        updateGraph : function() {
+          this.$.graph.update();
+        },
+
+        onFeatureSelected : function(e) {
+          //this.$.pages.selected = this.PAGES.INFO;
+          this.selectedPage = this.PAGES.info;
+          window.location.hash = 'info/'+e.detail.properties.prmname;
+        },
+
+        onFiltersUpdated : function(e) {
+          this.$.map.mapFilters = e.detail;
+
+          this.$.map.update();
+          this.$.graph.update();
+        },
+
+        onRegionSelect : function(e) {
+          this.$.map.onRegionSelect(e);
+        },
+
+        onDataUpdated : function() {
+          var menuState = this.$.menu.getEnabled();
+
+          CWN.ds.reset();
+          this.$.map.markerLayer.features = [];
+
+          CWN.ds.reload(function(){
+            this.$.menu.init(menuState);
+            this.$.map.onRegionSelect();
+            $(window).trigger('hashchange');
+          }.bind(this));
+        }
+    });
+</script>

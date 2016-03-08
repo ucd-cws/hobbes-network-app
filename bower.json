@@ -1,0 +1,36 @@
+{
+  "name": "ca-water-network",
+  "version": "0.0.1",
+  "authors": [
+    "Justin Merz <jrmerz@gmail.com>"
+  ],
+  "moduleType": [
+    "es6"
+  ],
+  "license": "MIT",
+  "private": true,
+  "ignore": [
+    "**/.*",
+    "node_modules",
+    "bower_components",
+    "test",
+    "tests"
+  ],
+  "dependencies": {
+    "bootstrap": "*",
+    "font-awesome": "*",
+    "leaflet": "*",
+    "animate-css": "~*",
+    "d3": "*",
+    "sigma.js": "*",
+    "polymer": "Polymer/polymer#^1.0.7",
+    "install": "~1.0.4",
+    "bootswatch-dist": "paper",
+    "paper-header-panel": "PolymerElements/paper-header-panel#~1.0.2",
+    "paper-toolbar": "PolymerElements/paper-toolbar#~1.0.4",
+    "paper-drawer-panel": "PolymerElements/paper-drawer-panel#~1.0.3",
+    "paper-toast": "PolymerElements/paper-toast#~1.0.0",
+    "marked": "~0.3.5",
+    "leaflet.heat": "Leaflet.heat#*"
+  }
+}

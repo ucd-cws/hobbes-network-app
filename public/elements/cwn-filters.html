@@ -1,0 +1,144 @@
+<dom-module id="cwn-filters">
+    <style>
+        .cb-border {
+            display:inline-block;
+            padding:2px 2px 0 2px;
+            border-radius:4px;
+        }
+        .showControls {
+            -webkit-transform: translate3d(0, -1000px, 0);
+            transform: translate3d(0, -1000px, 0);
+            transition: all 250ms;
+        }
+        .showControls.show {
+            -webkit-transform: translate3d(0, 0, 0);
+            transform: translate3d(0, 0, 0);
+        }
+    </style>
+
+    <template>
+      <cwn-popup id="popup" style="z-index: 10000">
+        <div class="popup-body" id="body">
+            <div class="row" >
+                <div class="col-md-10 col-md-offset-1">
+                  <div class="form-horizontal">
+
+                    <div class="form-group">
+                      <label for="filter-input" class="col-sm-3 control-label">Filter</label>
+                      <div class="col-sm-9">
+                        <input type="text" id="filter-input" class="form-control" on-change="updateFilterText" on-keyup="onKeyUp" />
+                        <p class="help-block">By name or description.</p>
+                      </div>
+
+                      <div class="form-group">
+                        <label for="in-out-input" class="col-sm-3 control-label">Inflow / Sink Mode</label>
+                        <div class="col-sm-9">
+                          <input type="checkbox" id="in-out-input" on-change="updateInOutMode" />
+                          <p class="help-block">Only show network inflows and sinks.</p>
+                        </div>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="filter-types" class="col-sm-2 control-label">Types</label>
+                        <div class="col-sm-10" id="filter-types">
+
+                            <template is="dom-repeat" items="{{legendArr}}">
+                              <div>
+                                <label class="checkbox-inline">
+                                    <input type="checkbox"
+                                        name="[[item.name]]"
+                                        checked="[[item.checked]]"
+                                        on-change="_updateCheckbox" />
+
+                                    <div class="cb-border">
+                                        <cwn-app-icon width="[[item.iconSize]]" height="[[item.iconSize]]" type="[[item.name]]"></cwn-app-icon>
+                                        <div style="vertical-align:top;display:inline-block;padding:2px 0 0 2px">[[item.name]]</div>
+                                    </div>
+                                </label>
+                              </div>
+                            </template>
+
+                        </div>
+                    </div>
+
+                  </div>
+                </div>
+            </div>
+        </div>
+      </cwn-popup>
+    </template>
+</dom-module>
+
+<script>
+    Polymer({
+        is : 'cwn-filters',
+
+        ready : function() {
+          this.legendArr = [];
+          this.iconSize = 22;
+
+          this.filters = {
+              calibrationMode : true,
+              oneStepMode : true,
+              inflowSinkMode : false,
+              text : '',
+          };
+        },
+
+        setLegend : function(legend) {
+          this.legend = legend;
+
+          var tmp = [];
+          for( var key in this.legend ) {
+              this.filters[key.replace(' ','_').replace('-','_')] = true;
+              tmp.push({
+                  iconSize : this.iconSize,
+                  name : key,
+                  checked : true
+              });
+          }
+          this.legendArr = tmp;
+        },
+
+        updateInOutMode : function() {
+          this.filters.inflowSinkMode = $(this.$['in-out-input']).is(':checked');
+          this.fire('update', this.filters);
+        },
+
+        _updateCheckbox : function(e) {
+            var name = e.currentTarget.getAttribute('name');
+            var value = $(e.currentTarget).is(':checked');
+            this.filters[name.replace(' ','_').replace('-','_')] = value;
+
+            this.fire('update', this.filters);
+        },
+
+        show : function() {
+          this.$.popup.show();
+        },
+
+        hide : function() {
+          this.$.popup.hide();
+        },
+
+        setCalibrationMode : function(e) {
+            this.filters.calibrationMode = $(e.currentTarget).is(':checked');
+            this.fire('update', this.filters);
+        },
+
+        setOneStepMode : function(e) {
+            this.filters.oneStepMode = $(e.currentTarget).is(':checked');
+            this.fire('update', this.filters);
+        },
+
+        onKeyUp : function(e) {
+            if( e.which != 13 ) return;
+            this.updateFilterText(e);
+        },
+
+        updateFilterText : function(e) {
+            this.filters.text = e.currentTarget.value;
+            this.fire('update', this.filters);
+        }
+    });
+</script>

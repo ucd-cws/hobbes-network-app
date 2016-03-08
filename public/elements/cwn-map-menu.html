@@ -1,0 +1,238 @@
+<link rel="import" href="cwn-animation-menu.html" />
+
+<dom-module id="cwn-map-menu">
+    <style>
+        :host {
+            display:block;
+            overflow: auto;
+        }
+        .menu-root {
+          background-color: rgba(200,200,200, .2);
+          padding-left: 10px;
+          border-radius: 3px;
+        }
+        .menu-item {
+          padding: 5px;
+          font-size: 14px;
+        }
+        .menu-item:hover {
+          color: #2196f3;
+          cursor: pointer;
+        }
+        .linkLegend {
+          width: 20px;
+          height: 10px;
+          display: inline-block;
+          margin: 10px;
+          vertical-align: middle;
+        }
+    </style>
+    <template>
+
+      <div id="mainMenu">
+        <div>
+          <a class="btn btn-link" on-click="showAll">Show All</a> <a class="btn btn-link" on-click="hideAll">Hide All</a>
+        </div>
+
+        <div id="content"></div>
+
+        <h5>Link Legend</h5>
+        <div>
+          <div><div class="linkLegend" id="toSink"></div> Flow to Sink</div>
+          <div><div class="linkLegend" id="fromDemand"></div> Flow from Demand</div>
+          <div><div class="linkLegend" id="groundwaterToDemand"></div> Groundwater to Demand</div>
+          <div><div class="linkLegend" id="recharge"></div> Recharge</div>
+          <div><div class="linkLegend" id="region"></div> To/from a Region</div>
+        </div>
+      </div>
+
+      <cwn-animation-menu id="animationMenu" style="display:none"></cwn-animation-menu>
+
+    </template>
+</dom-module>
+
+<script>
+    Polymer({
+        is : 'cwn-map-menu',
+
+        ready : function() {
+          this.classList.add('closed');
+
+
+          this.$.toSink.style.backgroundColor = CWN.colors.darkCyan;
+          this.$.fromDemand.style.backgroundColor = CWN.colors.red;
+          this.$.groundwaterToDemand.style.backgroundColor = CWN.colors.lightGrey;
+          this.$.recharge.style.backgroundColor = CWN.colors.green;
+          this.$.region.style.backgroundColor = CWN.colors.orange;
+        },
+
+        init : function(state) {
+          if( state ) {
+            this.state = state;
+          } else {
+            this.state = {
+              enabled : ['California'],
+              disabled : []
+            };
+          }
+
+          this.render();
+        },
+
+        setMenu : function(type) {
+          if( type === 'animation' ) {
+            this.$.animationMenu.style.display = 'block';
+            this.$.mainMenu.style.display = 'none';
+          } else {
+            this.$.animationMenu.style.display = 'none';
+            this.$.mainMenu.style.display = 'block';
+          }
+        },
+
+        getEnabled : function() {
+          this.state = {
+            enabled : ['California'],
+            disabled : []
+          };
+          this._getEnabled('California');
+          return this.state;
+        },
+
+        _getEnabled : function(name) {
+          var ele = $(this).find('input[name="'+name+'"]');
+
+          if( ele.is(':checked') ) {
+            if( name != 'California' ) this.state.enabled.push(name);
+            var region = CWN.ds.regionLookupMap[name];
+
+            if( !region ) return;
+            if( !region.properties.subregions ) return;
+
+            for( var i = 0; i < region.properties.subregions.length; i++ ) {
+              this._getEnabled(region.properties.subregions[i]);
+            }
+          } else {
+            this.state.disabled.push(name);
+          }
+        },
+
+        render : function() {
+            this.$.content.innerHTML = '';
+            this.renderRegion('California', this.$.content);
+        },
+
+        renderRegion : function(regionName, root) {
+            var ref = this;
+            var region = CWN.ds.regionLookupMap[regionName];
+
+            var id = region.properties.id;
+            var label = id;
+            if( region.properties && region.properties.name ) {
+              label = region.properties.name;
+            }
+
+            var enabled = false;
+            if( regionName == 'California' || this.state.enabled.indexOf(regionName) > -1 ) {
+              enabled = true;
+            }
+
+            var panel = $('<div class="menu-root cwn-map-menu"></div>');
+            var input = $('<div class="menu-item cwn-map-menu" name="'+id+'">'+
+                          '<input type="checkbox" name="'+id+'" '+(enabled ? 'checked' : '')+' /> '+label+'</div>');
+
+
+            var children = $('<div style="display:'+( enabled ? 'block' : 'none')+'" name="'+id+'-children" class="menu-children"></div>');
+            panel.append(input);
+            panel.append(children);
+
+            root.appendChild(panel[0]);
+
+            input.find('input').on('click', function(e){
+              e.stopPropagation();
+
+              var ele = $(this);
+
+              if( ele.is(':checked') ) {
+                  children.show('fast');
+              } else {
+                  children.hide('fast');
+              }
+
+              ref.fire('select', ref.getEnabled());
+            });
+
+            input
+              .on('click', function(){
+                input.find('input').trigger("click");
+              })
+              .on('mouseover', function(){
+                this.fire('hover', regionName);
+              }.bind(this))
+              .on('mouseout', function(){
+                this.fire('nohover', regionName);
+              }.bind(this));
+
+
+            if( !region.properties.subregions ) return;
+
+            for( var i = 0; i < region.properties.subregions.length; i++ ) {
+                this.renderRegion(region.properties.subregions[i], children[0]);
+            }
+        },
+
+        showAll : function() {
+          $(this.$.content)
+            .find('input')
+            .prop('checked','checked');
+
+          $(this.$.content)
+            .find('.menu-children')
+            .show();
+          this.getEnabled();
+
+          this.fire('select');
+        },
+
+        hideAll : function() {
+          $(this.$.content)
+            .find('input')
+            .prop('checked','');
+
+          $(this.$.content)
+            .find('.menu-children')
+            .hide();
+
+          $(this.$.content).find('input[name="California"]').trigger("click");
+        },
+
+        onRegionClick : function(name) {
+          var ele = $(this.querySelector('input[name="'+name+'"]'));
+          var children = $(this.querySelector('div[name="'+name+'-children"]'));
+
+          if( !ele.is(':checked') ) {
+            ele.prop('checked', true);
+            children.show('fast');
+          } else {
+            ele.prop('checked', false);
+            children.hide('fast');
+          }
+
+          this.fire('select', this.getEnabled());
+        },
+
+        setHovered : function(region) {
+          if( !region ) {
+            $(this).find('.menu-item').removeClass('hovered');
+            this.mouseOverRegion = null;
+            return;
+          }
+
+          if( this.mouseOverRegion && region.name == this.mouseOverRegion.name ) return;
+
+          $(this).find('.menu-item').removeClass('hovered');
+          this.mouseOverRegion = region;
+
+          $(this).find('.menu-item[name="'+region.name+'"]').addClass('hovered');
+        }
+    })
+</script>

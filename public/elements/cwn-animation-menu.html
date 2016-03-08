@@ -1,0 +1,177 @@
+<dom-module id="cwn-animation-menu">
+  <template>
+    <style>
+      :host {
+        display: block;
+      }
+      .filterItem {
+        margin-left: 8px;
+        margin-top: 4px;
+      }
+      .filterLabel {
+        border-bottom: 1px solid #eee;
+      }
+    </style>
+
+    <h4 class="page-header" style="margin-top: 15px">&nbsp;Animation Layer</h4>
+
+    <template is="dom-repeat" items="{{filters}}">
+      <div style="padding: 15px 15px">
+        <div class="filterLabel">
+          <input type="checkbox" style="vertical-align:top" id$="{{item.type}}" checked$="{{item.value}}" value="{{item.type}}" on-click="update" />
+          <span style="font-weight: bold; text-transform:capitalize; vertical-align:top" for$="{{item.type}}">{{item.type}}</span>
+
+          <canvas name$="{{item.type}}" width="26" height="26" style="text-align:middle; padding: 0 15px"></canvas>
+        </div>
+        <div class="filterItem">
+          <table>
+            <tr>
+              <td>
+                Max Size: <input type="number"
+                            class="form-control"
+                            style="display:inline-block; width:40px"
+                            name$="{{item.type}}"
+                            value="{{item.size}}"
+                            on-change="updateSize"
+                            />
+              </td>
+              <td>px</td>
+              <td style="font-size: 11px; color: #888; font-style: italic">
+                &nbsp; <span class="maxLabel" name$="{{item.type}}"></span> kaf
+              </td>
+            </tr>
+          </table>
+        </div>
+        <div class="filterItem">
+          Log Scale: <input type="checkbox" name$="{{item.type}}" checked on-click="updateLog" />
+        </div>
+      </div>
+    </template>
+
+
+  </template>
+  <script>
+    Polymer({
+      is: 'cwn-animation-menu',
+
+      ready : function() {
+        this.filters = [
+          {
+            type : 'inflows',
+            size : 25,
+            value : true,
+            log : true,
+            color : 'rgba(68,138,255,.8)'
+          },
+          {
+            type : 'flow',
+            size : 12,
+            value : true,
+            log : true,
+            color : 'rgba(56,142,60,.8)'
+          },
+          {
+            type : 'sinks',
+            size : 25,
+            value : true,
+            log : true,
+            color : 'rgba(211,47,47,.8)'
+          },
+          {
+            type : 'storage',
+            size : 25,
+            value : true,
+            log : true,
+            color : 'rgba(255,87,34,.8)'
+          },
+          {
+            type : 'evaporation',
+            size : 25,
+            value : false,
+            log : true,
+            color : 'rgba(255,235,59,.8)'
+          }
+        ]
+      },
+
+      attached : function() {
+        setTimeout(this.renderLegend.bind(this), 500);
+      },
+
+      setMax : function(max) {
+        for( var key in max ) {
+          var ele = this.querySelector('.maxLabel[name="'+key+'"]');
+          if( ele ) {
+            ele.innerHTML = max[key].max.toFixed(2);
+          }
+        }
+      },
+
+      renderLegend : function() {
+        for( var i = 0; i < this.filters.length; i++ ) {
+          var canvas = this.querySelector('canvas[name="'+this.filters[i].type+'"]');
+
+          var ctx = canvas.getContext('2d');
+          ctx.beginPath();
+
+          if( this.filters[i].type !== 'flow' ) {
+            ctx.fillStyle = this.filters[i].color;
+            ctx.arc(13, 13, 12, 0, 2*Math.PI);
+            ctx.fill();
+          } else {
+            ctx.strokeStyle = this.filters[i].color;
+            ctx.lineCap = 'round';
+            ctx.lineWidth = '8';
+            ctx.moveTo(4, 13);
+            ctx.lineTo(22, 13);
+            ctx.stroke();
+          }
+        }
+      },
+
+      update : function(e) {
+        var name = e.currentTarget.getAttribute('value');
+        var value = $(e.currentTarget).is(':checked');
+
+        for( var i = 0; i < this.filters.length; i++ ) {
+          if( this.filters[i].type === name ) {
+            this.filters[i].value = value;
+            break;
+          }
+        }
+
+        this.fire('animation-filters-updated');
+      },
+
+      updateSize : function(e) {
+        var name = e.currentTarget.getAttribute('name');
+        var value = Number(e.currentTarget.value);
+
+        for( var i = 0; i < this.filters.length; i++ ) {
+          if( this.filters[i].type === name ) {
+            this.filters[i].size = value;
+            break;
+          }
+        }
+
+        this.fire('animation-filters-updated');
+      },
+
+      updateLog : function(e) {
+        var name = e.currentTarget.getAttribute('name');
+        var value = $(e.currentTarget).is(':checked');
+
+        for( var i = 0; i < this.filters.length; i++ ) {
+          if( this.filters[i].type === name ) {
+            this.filters[i].log = value;
+            break;
+          }
+        }
+
+        this.fire('animation-filters-updated');
+      }
+
+
+    });
+  </script>
+</dom-module>

@@ -1,0 +1,428 @@
+<dom-module id="cwn-flow-info">
+  <template>
+    <style>
+      :host {
+        display: block;
+      }
+    </style>
+
+    <h4>Aggregate Flow</h4>
+
+    <div id="loading"><i class="fa fa-circle-o-notch fa-spin"></i> Loading...</div>
+
+    <cwn-date-linechart id="flowChart"></cwn-date-linechart>
+    <div class="help-block" style="text-align:right">Click chart point to inspect</div>
+
+    <cwn-date-linechart id="differenceChart" style="display:none"></cwn-date-linechart>
+
+    <div class="modal fade" id="popup">
+      <div class="modal-dialog">
+        <div class="modal-content">
+          <div class="modal-header">
+            <button type="button" class="close" data-label="Close" data-dismiss="modal"><span aria-hidden="true">&times;</span></button>
+            <h4 class="modal-title" id="title">Details</h4>
+          </div>
+          <div class="modal-body">
+            <div id="colChartRoot" style="height: 500px"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+
+  </template>
+  <script>
+    Polymer({
+      is: 'cwn-flow-info',
+
+      ready : function() {
+        this.popup = $(this.$.popup).remove();
+        $('body').append(this.popup);
+        this.popup.modal({show: false});
+      },
+
+      update : function(feature) {
+        if( this.feature && feature.properties.prmname == this.feature.properties.prmname ) {
+          return;
+        }
+
+        this.feature = feature;
+
+        //this.$.flow.style.display = 'none';
+        this.net = false;
+        var props = this.feature.properties;
+        this.$.differenceChart.style.display = 'none';
+
+        if( props.type == 'Region Link' ) {
+          $(this).parent().show();
+          this.$.loading.style.display = 'block';
+          this.loadLinkAggregate();
+       } else if( props.type == 'Region' ) {
+          $(this).parent().show();
+          this.$.loading.style.display = 'block';
+          this.loadAggregate();
+       } else if( props.extras &&
+          (props.extras.inflow || props.extras.flow || props.extras.sinks || props.extras.evaporation) ) {
+            $(this).parent().show();
+            this.$.loading.style.display = 'block';
+            this.load();
+        } else {
+          $(this).parent().hide();
+          this.$.loading.style.display = 'none';
+        }
+      },
+
+      load : function() {
+        CWN.ds.loadExtras(this.feature.properties.prmname, function(resp){
+          this.$.loading.style.display = 'none';
+          this.data = resp;
+          var positive = [];
+          var negative = [];
+
+          if( resp.inflows ) {
+            for( var name in resp.inflows  ) {
+              positive.push(resp.inflows[name].inflow);
+            }
+          }
+          if( resp.sinks ) {
+            for( var i = 0; i < resp.sinks.length; i++ ) {
+              for( var name in resp.sinks[i] ) {
+                negative.push(resp.sinks[i][name].flow);
+              }
+            }
+          }
+          if( resp.evaporation ) {
+            negative.push(resp.evaporation);
+          }
+          if( resp.flow ) {
+            negative.push(resp.flow);
+          }
+
+          if( positive.length + negative.length <= 1 ) {
+            $(this).parent().hide();
+            return;
+          }
+
+          var data = {}, chart;
+          for( var i = 0; i < positive.length; i++ ) {
+            chart = positive[i];
+            for( var j = 1; j < chart.length; j++ ) {
+              if( data[chart[j][0]] ) {
+                data[chart[j][0]] += chart[j][1];
+              } else {
+                data[chart[j][0]] = chart[j][1];
+              }
+            }
+          }
+
+          for( var i = 0; i < negative.length; i++ ) {
+            chart = negative[i];
+            for( var j = 1; j < chart.length; j++ ) {
+              if( data[chart[j][0]] ) {
+                data[chart[j][0]] += -1 * chart[j][1];
+              } else {
+                data[chart[j][0]] = -1 * chart[j][1];
+              }
+            }
+          }
+
+          var chartData = [['Date', 'Value']];
+          for( var date in data ) {
+            chartData.push([date, data[date]]);
+          }
+
+          this.$.flowChart.options = {
+            isStacked : true,
+            height: 500
+          }
+
+          this.$.flowChart.setHeight(500);
+          this.$.flowChart.type = 'AreaChart';
+          this.$.flowChart.onClick = this.onNodeChartClick.bind(this);
+          this.$.flowChart.update(chartData);
+
+        }.bind(this));
+      },
+
+      loadAggregate : function() {
+        $.get('/regions/aggregateRegion?region='+this.feature.properties.prmname, function(resp) {
+          this.data = resp;
+          this.$.loading.style.display = 'none';
+          this.$.differenceChart.style.display = 'block';
+
+          var data = [['Date','Amplitude Loss', 'Local Sinks', 'Evaporation', 'Link Outflows', '', 'Local Inflows', 'Link Inflows']];
+          var diffData = [['Date', 'Difference']];
+
+          for( var date in resp.aggregate ) {
+
+            var localInflow = this.data.aggregate[date].inflows || 0;
+            var linkInflow = this.data.aggregate[date].regionLinkInflow || 0;
+
+            var sink = this.data.aggregate[date].sinks ? this.data.aggregate[date].sinks*-1 : 0;
+            var evaporation = this.data.aggregate[date].evaporation ? this.data.aggregate[date].evaporation*-1 : 0;
+            var linkOutflow = this.data.aggregate[date].regionLinkOutflow ? this.data.aggregate[date].regionLinkOutflow*-1 : 0;
+            var ampLoss = this.data.aggregate[date].amplitudeLoss ? this.data.aggregate[date].amplitudeLoss*-1 : 0;
+
+            data.push([
+              date,
+              ampLoss,
+              sink,
+              evaporation,
+              linkOutflow,
+              (sink + evaporation + linkOutflow + ampLoss)*-1,
+              localInflow,
+              linkInflow
+            ]);
+            diffData.push([
+              date,
+              ampLoss + sink + evaporation + linkOutflow + localInflow + linkInflow
+            ]);
+          }
+
+          this.$.flowChart.options = {
+            isStacked : true,
+            height: 500,
+            legend : {
+              position: 'right'
+            },
+            series: {
+              4: {
+                  visibleInLegend: false,
+                  areaOpacity : 0,
+                  color : 'transparent'
+              }
+            }
+          }
+
+          this.$.flowChart.setHeight(500);
+          this.$.flowChart.onClick = this.onRegionChartClick.bind(this);
+          this.$.flowChart.type = 'AreaChart';
+          this.$.flowChart.update(data);
+
+          this.$.differenceChart.options = {
+            isStacked : true,
+            height: 400,
+            legend : {
+              position: 'right'
+            }
+          }
+
+          this.$.differenceChart.setHeight(500);
+          this.$.differenceChart.onClick = this.onRegionChartClick.bind(this);
+          this.$.differenceChart.type = 'AreaChart';
+          this.$.differenceChart.update(diffData);
+
+        }.bind(this));
+      },
+
+      loadLinkAggregate : function() {
+        $.get('/regions/aggregateLinks?n1='+this.feature.properties.origin+'&n2='+this.feature.properties.terminus, function(resp) {
+          this.$.loading.style.display = 'none';
+          this.data = resp.data;
+
+          this.fire('region-link-update', this.data);
+
+          var data = [['Date','Flow', 'Amplitude Loss', 'Sinks']];
+
+          var total = {};
+          for( var date in this.data[0].data ) {
+            total[date] = {
+              flow : (this.data[0].data[date].flow || 0) - (this.data[1].data[date] ? this.data[1].data[date].flow || 0 : 0),
+              amplitudeLoss : -1*((this.data[0].data[date].amplitudeLoss || 0) + (this.data[1].data[date] ? this.data[1].data[date].amplitudeLoss || 0 : 0)),
+              sinks : -1*((this.data[0].data[date].sinks || 0) + (this.data[1].data[date] ? this.data[1].data[date].sinks || 0 : 0))
+            }
+          }
+
+          for( var date in total ) {
+            data.push([
+              date,
+              total[date].flow,
+              total[date].amplitudeLoss,
+              total[date].sinks
+            ]);
+          }
+
+          this.$.flowChart.options = {
+            title: 'Rendered as '+this.data[0].origin+' to '+this.data[0].terminus,
+            isStacked : true,
+            height: 500,
+            legend : {
+              position: 'right'
+            }
+          }
+
+          this.$.flowChart.setHeight(500);
+          this.$.flowChart.onClick = this.onLinkChartClick.bind(this);
+          this.$.flowChart.type = 'AreaChart';
+          this.$.flowChart.update(data);
+
+        }.bind(this));
+      },
+
+      getDateDataPoint : function(data, date) {
+        for( var i = 0; i < data.length; i++ ) {
+          if( data[i][0] == date ) return data[i][1];
+        }
+        return 0;
+      },
+
+      onNodeChartClick : function(e) {
+        var date = e[0];
+
+        this.popup.modal('show');
+        this.$.colChartRoot.innerHTML = '';
+
+        var data = [];
+        var diff = 0, dp;
+        if( this.data.inflows ) {
+          for( var name in this.data.inflows  ) {
+            dp = this.getDateDataPoint(this.data.inflows[name].inflow, date);
+
+            data.push(['Inflow: '+name, dp,'#4caf50' ]);
+            diff += dp;
+          }
+        }
+        if( this.data.sinks ) {
+          for( var i = 0; i < this.data.sinks.length; i++ ) {
+            for( var name in this.data.sinks[i] ) {
+              dp = this.getDateDataPoint(this.data.sinks[i][name].flow, date);
+
+              data.push(['Sink: '+this.data.sinks[i][name].description, -1*dp, '#e51c23' ]);
+              diff -= dp;
+            }
+          }
+        }
+        if( this.data.evaporation ) {
+          dp = this.getDateDataPoint(this.data.evaporation, date);
+
+          data.push(['Evaporation', -1*dp, '#e51c23']);
+          diff -= dp;
+        }
+        if( this.data.flow ) {
+          dp = this.getDateDataPoint(this.data.flow, date);
+
+          data.push(['Flow', -1*dp, '#e51c23']);
+          diff -= dp;
+        }
+
+        data.sort(function(a, b){
+          if( a[1] < b[1] ) return -1;
+          if( b[1] < a[1] ) return 1;
+          return 0;
+        });
+
+        data.splice(0,0,['Type', 'Value',{ role: "style" }]);
+        data.push(['Difference', diff, '#ff9800']);
+
+        var dt = google.visualization.arrayToDataTable(data);
+        var options = {
+          title: date,
+          height: 500,
+          legend: { position: 'none' },
+        };
+
+        setTimeout(function(){
+            var chart = new google.visualization.ColumnChart(this.$.colChartRoot);
+            chart.draw(dt, options);
+        }.bind(this), 500);
+
+      },
+
+      onLinkChartClick : function(e) {
+        var date = e[0];
+
+        this.popup.modal('show');
+        this.$.colChartRoot.innerHTML = '';
+
+        var r1 = {
+          flow : 0,
+          ampLoss : 0,
+          sinks : 0
+        }
+        var r2 = {
+          flow : 0,
+          ampLoss : 0,
+          sinks : 0
+        }
+
+        if( this.data[0].data[date] ) {
+          r1.flow = this.data[0].data[date].flow || 0;
+          r1.ampLoss = this.data[0].data[date].ampLoss || 0;
+          r1.sinks = this.data[0].data[date].sinks || 0;
+        }
+        if( this.data[1].data[date] ) {
+          r2.flow = this.data[1].data[date].flow || 0;
+          r2.ampLoss = this.data[1].data[date].ampLoss || 0;
+          r2.sinks = this.data[1].data[date].sinks || 0;
+        }
+
+        var data = [
+          ['Type', 'Value'],
+          ['r1 to r2: Flow', r1.flow],
+          ['r1 to r2: Amplitude Loss', r1.ampLoss],
+          ['r1 to r2: Sinks', r1.sinks],
+          ['r2 to r1: Flow', r2.flow],
+          ['r2 to r1: Amplitude Loss', r2.ampLoss],
+          ['r1 to r2: Sinks', r2.sinks],
+          ['Flow Difference (r1 - r2)', r1.flow - r2.flow]
+        ];
+
+        var dt = google.visualization.arrayToDataTable(data);
+        var options = {
+          title: date+': r1='+this.data[0].origin+', r2='+this.data[0].terminus,
+          height: 500,
+          legend: { position: 'none' },
+        };
+
+        setTimeout(function(){
+            var chart = new google.visualization.ColumnChart(this.$.colChartRoot);
+            chart.draw(dt, options);
+        }.bind(this), 500);
+      },
+
+      onRegionChartClick : function(e) {
+        var date = e[0];
+
+        this.popup.modal('show');
+        this.$.colChartRoot.innerHTML = '';
+
+        var localInflow = this.data.aggregate[date].inflows || 0;
+        var linkInflow = this.data.aggregate[date].regionLinkInflow || 0;
+        var evaporation = this.data.aggregate[date].evaporation ? this.data.aggregate[date].evaporation*-1 : 0;
+        var sinks = this.data.aggregate[date].sinks ? this.data.aggregate[date].sinks*-1 : 0;
+        var linkOutflow = this.data.aggregate[date].regionLinkOutflow ? this.data.aggregate[date].regionLinkOutflow*-1 : 0;
+        var ampLoss = this.data.aggregate[date].amplitudeLoss ? this.data.aggregate[date].amplitudeLoss*-1 : 0;
+
+        var data = [
+          ['Local Inflows', localInflow,'#4caf50'],
+          ['Link Inflows', linkInflow,'#4caf50'],
+          ['Local Sinks', sinks, '#e51c23'],
+          ['Evaporation', evaporation, '#e51c23'],
+          ['Link Outflows', linkOutflow, '#e51c23'],
+          ['Amplitude Loss', ampLoss, '#e51c23']
+        ];
+
+        data.sort(function(a, b){
+          if( a[1] < b[1] ) return -1;
+          if( b[1] < a[1] ) return 1;
+          return 0;
+        });
+        data.splice(0,0,['Type', 'Value',{ role: "style" }]);
+        data.push(['Difference', localInflow + linkInflow+evaporation + linkOutflow + ampLoss + sinks, '#ff9800']);
+
+        var dt = google.visualization.arrayToDataTable(data);
+        var options = {
+          title: date,
+          height: 500,
+          legend: { position: 'none' },
+        };
+
+        setTimeout(function(){
+            var chart = new google.visualization.ColumnChart(this.$.colChartRoot);
+            chart.draw(dt, options);
+        }.bind(this), 500);
+      }
+
+    });
+  </script>
+</dom-module>

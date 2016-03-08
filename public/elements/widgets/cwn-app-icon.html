@@ -1,0 +1,117 @@
+<!--<polymer-element name="cwn-app-icon" attributes="type width height fillStyle fillFromType">-->
+<dom-module id="cwn-app-icon">
+    <style>
+        :host {
+            display: inline-block;
+        }
+    </style>
+
+    <template>
+        <canvas id="canvas"></canvas>
+        <i id="icon" class="fa fa-long-arrow-right" style="vertical-align:super"></i>
+        <i id="regionLinkIcon" class="fa fa-exchange" ></i>
+        <span id="regionIcon" >&#931;<i id="regionIconSub" style="vertical-align:bottom">i</i></span>
+    </template>
+</dom-module>
+
+
+<script>
+    Polymer({
+        is: 'cwn-app-icon',
+
+        properties : {
+            type : {
+                reflect : true,
+                type : String,
+                observer : 'onTypeChange'
+            },
+            width : {
+                type: String,
+                observer : 'redraw'
+            },
+            height : {
+                type: String,
+                observer : 'redraw'
+            },
+            fillStyle : String,
+            fillFromType : Boolean,
+            fontSize : {
+                type : String,
+                observer : 'onFontSizeChange'
+            }
+        },
+
+        ready : function() {
+          this.fillStyle = '#fffff';
+          this.fillFromType = false;
+          this.fontSize = 14;
+
+          this.styles = {
+            'Power Plant' : '#3366cc',
+            'Agricultural Demand' : '#ff9900',
+            'Junction' : '#109618',
+            'Pump Plant' : '#990099',
+            'Water Treatment' : '#0099c6',
+            'Surface Storage' : '#dd4477',
+            'Urban Demand' : '#66aa00',
+            'Sink' : '#b82e2e',
+            'Groundwater Storage' : '#316395',
+            'Non-Standard Demand' : '#22aa99'
+          };
+        },
+
+        attached : function() {
+            this.redraw();
+        },
+
+        onFontSizeChange : function() {
+            if( !this.$.icon ) return;
+
+            this.$.icon.style.fontSize = this.fontSize+'px';
+            this.$.regionLinkIcon.style.fontSize = this.fontSize+'px';
+            this.$.regionIcon.style.fontSize = this.fontSize+'px';
+            this.$.regionIconSub.style.fontSize = Math.ceil(this.fontSize*.6)+'px';
+        },
+
+        onTypeChange : function() {
+          $(this.$.canvas).hide();
+          $(this.$.regionLinkIcon).hide();
+          $(this.$.regionIcon).hide();
+          $(this.$.icon).hide();
+
+          if( this.type == 'Diversion' || this.type == 'Return Flow' ) {
+            $(this.$.icon).show();
+          } else if( this.type == 'Region Link' ) {
+            $(this.$.regionLinkIcon).show();
+          } else if( this.type == 'Region' ) {
+            $(this.$.regionIcon).show();
+          } else {
+            $(this.$.canvas).show();
+            this.redraw();
+          }
+        },
+
+        redraw : function() {
+            if( !this.$.canvas ) return;
+            if( this.height === undefined || this.width == undefined ) return;
+
+            this.fontSize = this.width-15;
+            if( this.fontSize < 14 ) this.fontSize = 14;
+
+            if( !CWN.render[this.type] ) return;
+
+            this.$.canvas.setAttribute('height', this.height);
+            this.$.canvas.setAttribute('width', this.width);
+
+            var ctx = this.$.canvas.getContext('2d');
+            ctx.clearRect(0, 0, this.width, this.height);
+
+            CWN.render[this.type](ctx, {
+                x: 2,
+                y: 2,
+                width: this.width-4,
+                height: this.height-4
+            });
+        }
+    });
+</script>

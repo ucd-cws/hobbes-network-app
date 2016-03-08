@@ -1,0 +1,148 @@
+<dom-module id="cwn-app-layout">
+    <style>
+        .navbar-inverse {
+            box-shadow: 0 0 5px black;
+        }
+        li {
+            cursor: pointer;
+        }
+        .full-height {
+            width: 100%;
+            height: 100%;
+            display: block;
+            position: absolute;
+            top: 0px;
+            left: 0px;
+        }
+        ::content .nav-right a {
+            margin: 8px 5px;
+            padding: 7px 10px;
+            line-height: 20px;
+            position: relative;
+            display: inline-block;
+            color: white !important;
+            cursor: pointer;
+
+            background-color: rgba(255,255,255,.1);
+            border-radius: 3px;
+        }
+
+        .logo {
+            font-size: 16px;
+            padding: 18px 10px;
+            color: white !important;
+            display: inline-block;
+        }
+        .nav-left {
+            padding: 18px 10px;
+            color: white !important;
+            display: inline-block;
+        }
+        .nav-right {
+            padding: 6px 0;
+            color: white !important;
+            display: inline-block;
+            text-align: right;
+        }
+
+        #mapLayout {
+          background-color: white;
+          height: 100%;
+          display: none;
+        }
+
+        #layout {
+          display: none;
+        }
+
+        .paper-drawer-panel#drawer {
+          z-index: 2000 !important;
+        }
+
+    </style>
+
+    <template>
+
+      <div id="navBtns">
+        <content select="[right-nav]"></content>
+      </div>
+
+      <paper-drawer-panel id="mapLayout" responsive-width="768px">
+
+        <paper-header-panel main style="height:100%">
+          <paper-toolbar style="background-color: #2196f3">
+            <a class="btn btn-link" paper-drawer-toggle style="color:white"><i class="fa fa-bars" paper-drawer-toggle></i></a>
+
+            <div class="visible-xs-inline-block">CWN <span class="devTitle"></span></div>
+
+            <div class="nav-right flex" id="mapBtns"></div>
+          </paper-toolbar>
+
+          <div class="fullbleed">
+            <content select="cwn-map"></content>
+          </div>
+
+
+        </paper-header-panel>
+
+        <paper-header-panel drawer class="drawer" style="z-index:2000">
+          <paper-toolbar style="background-color: #2196f3">
+            <div class="hidden-xs">CALVIN Water Network <span class="devTitle"></span></div>
+          </paper-toolbar>
+
+          <content select="cwn-map-menu"></content>
+        </paper-header-panel>
+      </paper-drawer-panel>
+
+
+        <div class="full-height" id="layout">
+            <div class="vertical layout" style="height:100%">
+                <div style="height:62px">
+                    <nav class="navbar navbar-inverse navbar-fixed-top" role="navigation" >
+                        <div class="logo">
+                            <span class="hidden-xs">CALVIN Water Network <span class="devTitle"></span></span>
+                            <span class="visible-xs">CWN <span class="devTitle"></span></span>
+                        </div>
+
+                        <div id="leftNav" class="nav-left"></div>
+                        <div class="nav-right" style="float:right" id="layoutBtns"></div>
+                    </nav>
+                </div>
+                <div class="flex" style="position:relative">
+                    <div class="full-height">
+                        <content select="[content]"></content>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+    </template>
+</dom-module>
+
+<script>
+    Polymer({
+        is : 'cwn-app-layout',
+
+        attached : function() {
+          // HACK
+          setTimeout(function(){
+            var ele = this.querySelector('.paper-drawer-panel#drawer');
+            if( ele ) ele.style.zIndex = 2000;
+          }.bind(this), 500);
+        },
+
+        updateView : function(page) {
+          $(this.$.navBtns).remove();
+
+          if( page == 'map' ) {
+            this.$.mapLayout.style.display = 'block';
+            this.$.layout.style.display = 'none';
+            this.$.mapBtns.appendChild(this.$.navBtns);
+          } else {
+            this.$.mapLayout.style.display = 'none';
+            this.$.layout.style.display = 'block';
+            this.$.layoutBtns.appendChild(this.$.navBtns);
+          }
+        }
+    });
+</script>

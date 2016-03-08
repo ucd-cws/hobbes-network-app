@@ -1,0 +1,88 @@
+<dom-module id="cwn-info-link">
+    <style>
+        span.invalid {
+            color: #888;
+            font-style: italic;
+            vertical-align:super;
+        }
+        a {
+            vertical-align: top;
+        }
+        :host {
+            white-space: nowrap;
+            display: inline-block;
+        }
+    </style>
+    <template>
+        <span hidden$="{{!valid}}">
+            <cwn-app-icon type$="{{type}}" width="22" height="22" fillFromType="true"></cwn-app-icon>
+            <a href="{{link}}">{{prmname}}</a> <span style="vertical-align:top; color: #ccc">{{type}}</span>
+        </span>
+
+        <span hidden$="{{!region}}">
+            <span>{{label}}</span> <span style="vertical-align:top; color: #ccc">{{type}}</span>
+        </span>
+
+        <span hidden$="{{!unknown}}">{{prmname}}</span>
+    </template>
+</dom-module>
+
+
+<script>
+    Polymer({
+        is : 'cwn-info-link',
+
+        properties : {
+            prmname : {
+              type : String,
+              observer : 'update'
+            }
+        },
+
+        ready : function() {
+          this.prmname = '';
+          this.link = '';
+          this.type = '';
+          this.label = '';
+          this.reset();
+        },
+
+        reset : function() {
+          this.valid = false;
+          this.unknown = false;
+          this.region = false;
+        },
+
+        attached : function() {
+          if( !this.prmname && this.getAttribute('prmname') ) {
+            this.prmname = this.getAttribute('prmname');
+          }
+
+          if( CWN.ds.loading ) CWN.ds.on('load', this.update.bind(this));
+          else this.update();
+        },
+
+        update : function() {
+          if( CWN.ds.loading ) return;
+          this.reset();
+
+          if( CWN.ds.regionLookupMap[this.prmname] ) {
+            this.region = true;
+            this.type = 'Region';
+            this.label = CWN.ds.regionLookupMap[this.prmname].properties.name;
+            return;
+          }
+
+          if( !CWN.ds.lookupMap[this.prmname] ) {
+              this.unknown = true;
+              return;
+          }
+
+          this.valid = true;
+
+          this.type = CWN.ds.lookupMap[this.prmname].properties.type;
+          this.link = '#info/'+ this.prmname;
+        }
+
+    });
+</script>
